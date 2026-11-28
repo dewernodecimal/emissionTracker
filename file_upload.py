@@ -85,18 +85,27 @@ if uploaded_files:
                     category = "Unknown"
                     st.error(f"AI classification failed: {e}")
 
-            # step 4: show the result with a colour-coded label
-            if category == "Travel":
-                st.success(f"AI classified this as: **{category}** (Category 6 — Business Travel)")
+            # step 4: show the result — handles single or multiple categories
+            category_map = {
+                "Travel"  : "✈️  Category 6 — Business Travel",
+                "Commute" : "🚗  Category 7 — Employee Commuting",
+                "Waste"   : "🗑️  Category 5 — Waste Generated in Operations",
+            }
 
-            elif category == "Commute":
-                st.success(f"AI classified this as: **{category}** (Category 7 — Employee Commuting)")
+            # split in case AI returned multiple e.g. "Travel, Waste"
+            detected = [c.strip() for c in category.split(",")]
 
-            elif category == "Waste":
-                st.success(f"AI classified this as: **{category}** (Category 5 — Waste Generated in Operations)")
+            if category == "Unknown" or not detected:
+                st.warning("❓ AI could not confidently classify this file.")
 
             else:
-                st.warning(f"AI could not confidently classify this file: **{category}**")
+                for cat in detected:                          # loop through each detected category
+                    if cat in category_map:
+                        st.success(f"AI detected: **{cat}** — {category_map[cat]}")
+
+                # if more than one category found, show a note explaining why
+                if len(detected) > 1:
+                    st.info("ℹ️ This file contains mixed data from multiple categories.")
 
         st.divider()    # draw a horizontal line between files
 

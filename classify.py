@@ -24,13 +24,14 @@ def classify_dataset(df):
     column_names = ", ".join(df.columns.tolist())
 
 
-    # primpt for gemini
+    # prompt for gemini — now supports multiple categories in one file
     prompt = f"""
 You are a carbon emission data classifier.
 
 A company has uploaded a data file. Your job is to look at the column names
-and a few sample rows, then decide which ONE category this data belongs to:
+and a few sample rows, then decide which categories this data belongs to.
 
+The possible categories are:
 - "Travel"  → data about business trips: flights, hotels, trains, rental cars
 - "Commute" → data about employees travelling to/from work: cars, buses, metro, bikes
 - "Waste"   → data about waste disposal: landfill, recycling, composting, incineration
@@ -41,9 +42,11 @@ Here are the column names from the file:
 Here are the first few rows of data:
 {sample_text}
 
-Reply with ONLY one word: Travel, Commute, or Waste.
-If you genuinely cannot tell, reply with: Unknown
-Do not explain. Do not add punctuation. Just the single word.
+Rules:
+- If the file contains only ONE type of data, reply with just that one word. Example: Travel
+- If the file contains a MIX of multiple types, reply with all that apply separated by commas. Example: Travel, Commute
+- If you cannot tell at all, reply with: Unknown
+- Do not explain. Do not add punctuation beyond commas. Just the category words.
 """
 
     # send the prompt to Gemini — retry up to 3 times if the server is busy
@@ -62,15 +65,18 @@ Do not explain. Do not add punctuation. Just the single word.
                 raise e                               # on the 3rd failure, give up and raise the error
 
     # pull the text out of the response and clean up whitespace
-    result = response.text.strip()
+    raw = response.text.strip()
 
-    # standardize the capitalization (in case Gemini returns "travel" or "TRAVEL")
-    result = result.capitalize()
+    # split by comma in case multiple categories were returned (e.g. "Travel, Commute")
+    parts = [p.strip().capitalize() for p in raw.split(",")]
 
-    # make sure the result is one we expect — if not, return "Unknown" as a safe fallback
-    valid_categories = ["Travel", "Commute", "Waste", "Unknown"]
+    valid = {"Travel", "Commute", "Waste", "Unknown"}   # set of valid answers
 
-    if result not in valid_categories:
-        return "Unknown"
+    # keep only the parts that are valid category names
+    matched = [p for p in parts if p in valid]
 
-    return result    # return the final classification
+    if not matched:
+        return "Unknown"   # nothing matched — fall back to Unknown
+
+    # if multiple categories found, join them back as a string e.g. "Travel, Waste"
+    return ", ".join(matched)
